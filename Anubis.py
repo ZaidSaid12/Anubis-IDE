@@ -1,10 +1,10 @@
 #############      author => Anubis Graduation Team        ############
 #############      this project is part of my graduation project and it intends to make a fully functioned IDE from scratch    ########
 #############      I've borrowed a function (serial_ports()) from a guy in stack overflow whome I can't remember his name, so I gave hime the copyrights of this function, thank you  ########
-
-
+from io import StringIO
 import sys
 import glob
+
 import serial
 
 import Python_Coloring
@@ -69,7 +69,7 @@ class Signal(QObject):
 # Making text editor as A global variable (to solve the issue of being local to (self) in widget class)
 text = QTextEdit
 text2 = QTextEdit
-
+arguments = QLineEdit
 #
 #
 #
@@ -125,7 +125,7 @@ class Widget(QWidget):
         tx = text_widget()
         tab.addTab(tx, "Tab"+"1")
 
-        # second editor in which the error messeges and succeeded connections will be shown
+        # second editor in which the error messeges, succeeded connections and output will be shown
         global text2
         text2 = QTextEdit()
         text2.setReadOnly(True)
@@ -175,6 +175,16 @@ class Widget(QWidget):
         # I defined a new splitter to seperate between the upper and lower sides of the window
         V_splitter = QSplitter(Qt.Vertical)
         V_splitter.addWidget(H_splitter)
+
+        # Arguments from the arguments text edit to be passed to the function call, they should be seperated by a comma
+        labelForArgs = QLabel(self)
+        labelForArgs.setText(
+            "Arguments should be comma separated and in the correct order, ex: first_argument, second_argument")
+        V_splitter.addWidget(labelForArgs)
+        global arguments
+        arguments = QLineEdit(self)
+        V_splitter.addWidget(arguments)
+
         V_splitter.addWidget(text2)
 
         Final_Layout = QHBoxLayout(self)
@@ -261,6 +271,7 @@ class UI(QMainWindow):
         Port = menu.addMenu('Port')
         Run = menu.addMenu('Run')
 
+
         # As any PC or laptop have many ports, so I need to list them to the User
         # so I made (Port_Action) to add the Ports got from (serial_ports()) function
         # copyrights of serial_ports() function goes back to a guy from stackoverflow(whome I can't remember his name), so thank you (unknown)
@@ -280,8 +291,12 @@ class UI(QMainWindow):
 
         # Making and adding Run Actions
         RunAction = QAction("Run", self)
-        RunAction.triggered.connect(self.Run)
+        RunAction.triggered.connect(self.run)
         Run.addAction(RunAction)
+
+        # Add new action in the menu for the fast execution
+        MyRunAction = QAction("Run", self)
+        MyRunAction.triggered.connect(self.run)
 
         # Making and adding File Features
         Save_Action = QAction("Save", self)
@@ -312,19 +327,48 @@ class UI(QMainWindow):
         self.show()
 
     ###########################        Start OF the Functions          ##################
-    def Run(self):
-        if self.port_flag == 0:
-            mytext = text.toPlainText()
-        #
-        ##### Compiler Part
-        #
-#            ide.create_file(mytext)
-#            ide.upload_file(self.portNo)
-            text2.append("Sorry, there is no attached compiler.")
-
-        else:
-            text2.append("Please Select Your Port Number First")
-
+    '''
+    This function was enhanced by 'Zaid Said Abdelaziz', this function will find wether the user entered a new function
+    and wants to execute it by passing any parameters (if required)
+    or the user just wants to execute a normal code using built-in functions in python
+    '''
+    def run(self):
+        # Clear IDE console
+        text2.clear()
+        # text2.append("Working")
+        # Get the code from the edit text
+        code = text.toPlainText()
+        args = arguments.text().split(',')
+        function_call_start = code.find("def") + 4
+        
+        function_call_end = code.find("(")
+        function_call = code[function_call_start: function_call_end + 1]
+        for arg in args:
+            function_call += arg + ','
+        function_call = function_call[:-1] + ')'
+        
+        # print(function_call)
+        try:
+            # Redirect console output to IDE console
+            original_stdout = sys.stdout
+            result = StringIO()
+            sys.stdout = result
+            # Execute the normal code, no defined functions by the user
+            if code.find('def') == -1:
+                try:
+                    exec(code)
+                except Exception as e:
+                        text.append(str(e))
+            else:
+                #Execute the defined function by the user
+                exec(code + "\n" + function_call, globals())
+                # Show result in IDE console
+            text2.append(result.getvalue())
+            # Restore original stdout to print in console
+            sys.stdout = original_stdout
+        except Exception as e:
+            # logging.error(traceback.format_exc())
+            text2.append(str(e))
 
     # this function is made to get which port was selected by the user
     @QtCore.pyqtSlot()
